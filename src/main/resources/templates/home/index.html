@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html lang="en"
+      xmlns:th="http://www.thymeleaf.org"
+      xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
+  <head>
+    <meta charset="UTF-8"/>
+    <title>Home#index</title>
+  </head>
+  <body>
+    <p>
+      Hi <span sec:authentication="name"></span>
+    </p>
+
+    <script th:inline="javascript">
+      var CURRENT_USER = /*[[${#authentication.name}]]*/ 'user@example.com';
+    </script>
+  </body>
+</html>

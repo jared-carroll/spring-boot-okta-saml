@@ -1,0 +1,105 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+       xmlns:security="http://www.springframework.org/schema/security"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans.xsd
+        http://www.springframework.org/schema/security http://www.springframework.org/schema/security/spring-security.xsd">
+
+  <security:http security="none" pattern="/favicon.ico"/>
+
+  <security:http entry-point-ref="samlEntryPoint" use-expressions="false">
+    <security:intercept-url pattern="/**" access="IS_AUTHENTICATED_FULLY"/>
+    <security:custom-filter before="FIRST" ref="metadataGeneratorFilter"/>
+    <security:custom-filter after="BASIC_AUTH_FILTER" ref="samlFilter"/>
+    <security:csrf disabled="true"/>
+  </security:http>
+
+  <bean id="metadataGeneratorFilter" class="org.springframework.security.saml.metadata.MetadataGeneratorFilter">
+    <constructor-arg ref="metadataGenerator"/>
+  </bean>
+
+  <bean id="metadataGenerator" class="org.springframework.security.saml.metadata.MetadataGenerator">
+    <property name="entityBaseURL" value="${entity-base-url}"/>
+  </bean>
+
+  <bean class="org.springframework.security.saml.key.JKSKeyManager">
+    <constructor-arg value="classpath:keystore.p12"/>
+    <constructor-arg value="changeit"/>
+    <constructor-arg>
+      <map>
+        <entry key="mykey" value="changeit"/>
+      </map>
+    </constructor-arg>
+    <constructor-arg value="mykey"/>
+  </bean>
+
+  <bean id="samlFilter" class="org.springframework.security.web.FilterChainProxy">
+    <security:filter-chain-map request-matcher="ant">
+      <security:filter-chain pattern="/saml/metadata/**" filters="metadataDisplayFilter"/>
+      <security:filter-chain pattern="/saml/login/**" filters="samlEntryPoint"/>
+      <security:filter-chain pattern="/saml/SSO/**" filters="samlProcessingFilter"/>
+    </security:filter-chain-map>
+  </bean>
+
+  <bean id="metadataDisplayFilter" class="org.springframework.security.saml.metadata.MetadataDisplayFilter"/>
+
+  <bean id="samlEntryPoint" class="org.springframework.security.saml.SAMLEntryPoint">
+    <property name="webSSOprofile" ref="webSSOProfile"/>
+    <property name="contextProvider" ref="samlContextProvider"/>
+  </bean>
+
+  <bean id="samlProcessingFilter" class="org.springframework.security.saml.SAMLProcessingFilter">
+    <property name="authenticationManager" ref="authenticationManager"/>
+  </bean>
+
+  <bean id="webSSOProfile" class="org.springframework.security.saml.websso.WebSSOProfileImpl">
+    <property name="processor" ref="samlProcessor"/>
+  </bean>
+
+  <bean id="webSSOprofileConsumer" class="org.springframework.security.saml.websso.WebSSOProfileConsumerImpl"/>
+
+  <bean id="hokWebSSOprofileConsumer" class="org.springframework.security.saml.websso.WebSSOProfileConsumerHoKImpl"/>
+
+  <bean id="samlContextProvider" class="org.springframework.security.saml.context.SAMLContextProviderImpl"/>
+
+  <bean id="samlProcessor" class="org.springframework.security.saml.processor.SAMLProcessorImpl">
+    <constructor-arg>
+      <list>
+        <ref bean="httpPostBinding"/>
+      </list>
+    </constructor-arg>
+  </bean>
+
+  <bean id="httpPostBinding" class="org.springframework.security.saml.processor.HTTPPostBinding">
+    <constructor-arg ref="parserPool"/>
+    <constructor-arg ref="velocityEngine"/>
+  </bean>
+
+  <bean id="velocityEngine" class="org.springframework.security.saml.util.VelocityFactory" factory-method="getEngine"/>
+
+  <bean class="org.springframework.security.saml.metadata.CachingMetadataManager">
+    <constructor-arg>
+      <list>
+        <ref bean="httpMetadataProvider"/>
+      </list>
+    </constructor-arg>
+  </bean>
+
+  <bean id="httpMetadataProvider" class="org.opensaml.saml2.metadata.provider.HTTPMetadataProvider">
+    <constructor-arg value="${okta-metadata-url}"/>
+    <constructor-arg value="5000"/>
+    <property name="parserPool" ref="parserPool"/>
+  </bean>
+
+  <security:authentication-manager id="authenticationManager">
+    <security:authentication-provider ref="samlAuthenticationProvider"/>
+  </security:authentication-manager>
+
+  <bean id="samlAuthenticationProvider" class="org.springframework.security.saml.SAMLAuthenticationProvider"/>
+
+  <bean id="parserPool" class="org.opensaml.xml.parse.StaticBasicParserPool" init-method="initialize"/>
+
+  <bean class="org.springframework.security.saml.log.SAMLDefaultLogger"/>
+
+  <bean class="org.springframework.security.saml.SAMLBootstrap"/>
+</beans>
